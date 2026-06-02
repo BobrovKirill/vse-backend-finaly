@@ -2,61 +2,81 @@ from collections import defaultdict
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
-from app.models.entities import AnswerOption, Package, Question, QuestionType, Submission, SubmissionAnswer
-from app.schemas.submission import SubmissionCreate
+from app.models.entities import (
+    Answer,
+    Choice,
+    ChoiceAnswer,
+    ChoiceIndicatorScore,
+    ChoicePackageRecommendation,
+    Package,
+    PackageRule,
+    Question,
+    QuestionType,
+)
+from app.schemas.choice import ChoiceCreate
 
 
-def create_submission_with_recommendation(db: Session, payload: SubmissionCreate) -> Submission:
+def create_choice_with_recommendation(db: Session, payload: ChoiceCreate) -> Choice:
     questions = _load_active_questions(db)
-    options_by_id = _load_active_options(db)
-    selected_rows: list[tuple[Question, AnswerOption]] = []
+    answers_by_id = _load_active_answers(db)
+    selected_rows: list[tuple[Question, Answer]] = []
 
-    for answer in payload.answers:
-        question = questions.get(answer.question_id)
+    for selected_answer in payload.answers:
+        question = questions.get(selected_answer.question_id)
         if question is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Question {answer.question_id} is inactive or does not exist",
+                detail=f"Question {selected_answer.question_id} is inactive or does not exist",
             )
-        if question.question_type == QuestionType.single.value and len(answer.answer_option_ids) != 1:
+        if question.question_type == QuestionType.single.value and len(selected_answer.answer_ids) != 1:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Question {answer.question_id} accepts exactly one answer",
+                detail=f"Question {selected_answer.question_id} accepts exactly one answer",
             )
 
-        for option_id in answer.answer_option_ids:
-            option = options_by_id.get(option_id)
-            if option is None or option.question_id != question.id:
+        for answer_id in selected_answer.answer_ids:
+            answer = answers_by_id.get(answer_id)
+            if answer is None or answer.question_id != question.id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Answer option {option_id} does not belong to question {question.id}",
+                    detail=f"Answer {answer_id} does not belong to question {question.id}",
                 )
-            selected_rows.append((question, option))
+            selected_rows.append((question, answer))
 
-    package_scores: dict[int, int] = defaultdict(int)
-    total_score = 0
-    for _, option in selected_rows:
-        total_score += option.score
-        if option.package_id is not None:
-            package_scores[option.package_id] += option.score
+    indicator_scores: dict[int, int] = defaultdict(int)
+    for _, answer in selected_rows:
+        for effect in answer.effects:
+            indicator_scores[effect.indicator_id] += effect.score
 
-    recommended_package_id = _select_best_package_id(db, package_scores)
-    submission = Submission(
+    choice = Choice(
         contact_name=payload.contact_name,
         contact_phone=payload.contact_phone,
-        recommended_package_id=recommended_package_id,
-        total_score=total_score,
     )
-    submission.answers = [
-        SubmissionAnswer(question_id=question.id, answer_option_id=option.id)
-        for question, option in selected_rows
+    choice.answers = [
+        ChoiceAnswer(answer_id=answer.id)
+        for _, answer in selected_rows
     ]
-    db.add(submission)
+    choice.indicator_scores = [
+        ChoiceIndicatorScore(indicator_id=indicator_id, score=score)
+        for indicator_id, score in indicator_scores.items()
+    ]
+    choice.recommended_packages = [
+        ChoicePackageRecommendation(
+            package_id=package_id,
+            rank=rank,
+            matched_weight=matched_weight,
+        )
+        for rank, (package_id, matched_weight) in enumerate(
+            _select_matching_packages(db, indicator_scores),
+            start=1,
+        )
+    ]
+    db.add(choice)
     db.commit()
-    db.refresh(submission)
-    return submission
+    db.refresh(choice)
+    return choice
 
 
 def _load_active_questions(db: Session) -> dict[int, Question]:
@@ -64,25 +84,42 @@ def _load_active_questions(db: Session) -> dict[int, Question]:
     return {row.id: row for row in rows}
 
 
-def _load_active_options(db: Session) -> dict[int, AnswerOption]:
-    rows = db.execute(select(AnswerOption).where(AnswerOption.is_active.is_(True))).scalars().all()
+def _load_active_answers(db: Session) -> dict[int, Answer]:
+    rows = db.execute(
+        select(Answer)
+        .options(selectinload(Answer.effects))
+        .where(Answer.is_active.is_(True))
+    ).scalars().all()
     return {row.id: row for row in rows}
 
 
-def _select_best_package_id(db: Session, package_scores: dict[int, int]) -> int | None:
-    if not package_scores:
-        return None
+def _select_matching_packages(db: Session, indicator_scores: dict[int, int]) -> list[tuple[int, int]]:
+    if not indicator_scores:
+        return []
 
-    active_packages = db.execute(
-        select(Package).where(Package.id.in_(package_scores.keys()), Package.is_active.is_(True))
+    packages = db.execute(
+        select(Package).where(Package.is_active.is_(True)).order_by(Package.id)
     ).scalars().all()
-    active_ids = {package.id for package in active_packages}
-    eligible_scores = {
-        package_id: score
-        for package_id, score in package_scores.items()
-        if package_id in active_ids
-    }
-    if not eligible_scores:
-        return None
+    rules = db.execute(select(PackageRule)).scalars().all()
+    rules_by_package: dict[int, list[PackageRule]] = defaultdict(list)
+    for rule in rules:
+        rules_by_package[rule.package_id].append(rule)
 
-    return max(eligible_scores.items(), key=lambda item: (item[1], -item[0]))[0]
+    matched_packages: list[tuple[int, int]] = []
+    for package in packages:
+        package_rules = rules_by_package.get(package.id, [])
+        if not package_rules:
+            continue
+
+        matched_weight = 0
+        for rule in package_rules:
+            score = indicator_scores.get(rule.indicator_id, 0)
+            if score < rule.min_score:
+                break
+            if rule.max_score is not None and score > rule.max_score:
+                break
+            matched_weight += rule.weight
+        else:
+            matched_packages.append((package.id, matched_weight))
+
+    return sorted(matched_packages, key=lambda item: (-item[1], item[0]))

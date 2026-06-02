@@ -3,40 +3,55 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.database import get_db
-from app.models.entities import Question, Submission
-from app.schemas.question import QuestionRead
-from app.schemas.submission import RecommendationRead, SubmissionCreate
-from app.services.recommendations import create_submission_with_recommendation
+from app.models.entities import Choice, ChoicePackageRecommendation, Package, PackageService, Question
+from app.schemas.choice import ChoiceCreate, RecommendationRead
+from app.schemas.question import PublicQuestionRead
+from app.services.public_questions_cache import cache_public_questions, get_cached_public_questions
+from app.services.recommendations import create_choice_with_recommendation
 
 router = APIRouter(prefix="/public", tags=["public"])
 
 
-@router.get("/questions", response_model=list[QuestionRead])
-def get_public_questions(db: Session = Depends(get_db)) -> list[Question]:
+@router.get("/questions", response_model=list[PublicQuestionRead])
+def get_public_questions(db: Session = Depends(get_db)) -> list[PublicQuestionRead]:
+    cached_questions = get_cached_public_questions()
+    if cached_questions is not None:
+        return cached_questions
+
     query = (
         select(Question)
-        .options(selectinload(Question.answer_options))
+        .options(selectinload(Question.answers))
         .where(Question.is_active.is_(True))
         .order_by(Question.position, Question.id)
     )
     questions = db.execute(query).scalars().all()
     for question in questions:
-        question.answer_options = [
-            option for option in question.answer_options if option.is_active
-        ]
-    return list(questions)
+        question.answers = [answer for answer in question.answers if answer.is_active]
+    public_questions = [
+        PublicQuestionRead.model_validate(question)
+        for question in questions
+    ]
+    cache_public_questions(public_questions)
+    return public_questions
 
 
-@router.post("/submissions", response_model=RecommendationRead)
-def submit_answers(payload: SubmissionCreate, db: Session = Depends(get_db)) -> RecommendationRead:
-    submission = create_submission_with_recommendation(db, payload)
-    submission = db.execute(
-        select(Submission)
-        .options(selectinload(Submission.recommended_package))
-        .where(Submission.id == submission.id)
+@router.post("/choices", response_model=RecommendationRead)
+def submit_answers(payload: ChoiceCreate, db: Session = Depends(get_db)) -> RecommendationRead:
+    choice = create_choice_with_recommendation(db, payload)
+    choice = db.execute(
+        select(Choice)
+        .options(
+            selectinload(Choice.indicator_scores),
+            selectinload(Choice.recommended_packages)
+            .selectinload(ChoicePackageRecommendation.package)
+            .selectinload(Package.services)
+            .selectinload(PackageService.service),
+        )
+        .where(Choice.id == choice.id)
     ).scalar_one()
     return RecommendationRead(
-        submission_id=submission.id,
-        recommended_package=submission.recommended_package,
-        total_score=submission.total_score,
+        choice_id=choice.id,
+        recommended_packages=choice.recommended_packages,
+        total_score=choice.total_score,
+        indicator_scores=choice.indicator_scores,
     )

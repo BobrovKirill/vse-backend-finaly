@@ -1,140 +1,304 @@
 <script setup lang="ts">
-import { Lock } from '@element-plus/icons-vue'
+import { ArrowRight, Lock } from '@element-plus/icons-vue'
+
 const route = useRoute()
 
-// Для квиза показываем прогресс
-const showProgress = computed(() => route.path === '/' || route.path.includes('quiz'))
-
-const currentStep = ref(3)   // пока хардкод, потом сделаем динамику
-const totalSteps = ref(8)
-const progress = computed(() => Math.round((currentStep.value / totalSteps.value) * 100))
+function isActive(path: string) {
+  return route.path === path
+}
 </script>
 
 <template>
   <el-container :class="$style.layout">
-    <!-- Header -->
-    <el-header :class="$style.header" height="70px">
+    <el-header :class="$style.header" height="72px">
       <div :class="$style.headerContent">
-        <!-- Logo -->
-        <div :class="$style.logo">
-          <span class="text-3xl font-bold text-[#1e40af]">K</span>
-          <span class="text-3xl font-bold text-[#3b82f6]">+31</span>
-          <div :class="$style.logoText">
+        <NuxtLink to="/" :class="$style.logo">
+          <span :class="$style.logoMark">K<span>+31</span></span>
+          <span :class="$style.logoText">
             БИОХАКИНГ<br>
-            <span>КОРОБКА</span>
-          </div>
-        </div>
-
-        <!-- Progress -->
-        <div v-if="showProgress" :class="$style.progressContainer">
-          <span :class="$style.progressText">
-            Шаг {{ currentStep }} из {{ totalSteps }}
+            <strong>КОРОБКА</strong>
           </span>
+        </NuxtLink>
 
-          <el-progress
-              :percentage="progress"
-              :stroke-width="6"
-              style="width: 360px;"
-              class="w-64"
-          />
+        <nav :class="$style.navigation" aria-label="Основная навигация">
+          <NuxtLink to="/" :class="{ [$style.active]: isActive('/') }">
+            Главная
+          </NuxtLink>
+          <NuxtLink to="/about" :class="{ [$style.active]: isActive('/about') }">
+            О проекте
+          </NuxtLink>
+          <NuxtLink to="/team" :class="{ [$style.active]: isActive('/team') }">
+            Команда
+          </NuxtLink>
+        </nav>
 
-          <span :class="$style.progressPercent">{{ progress }}%</span>
-        </div>
-
-        <!-- Right side -->
-        <div :class="$style.rightSection">
-          <span :class="$style.protectedText">Ваши данные защищены</span>
-          <el-icon :size="22" color="#3b82f6">
-            <Lock />
-          </el-icon>
+        <div :class="$style.headerActions">
+          <div :class="$style.protected">
+            <el-icon :size="18">
+              <Lock />
+            </el-icon>
+            <span>Данные защищены</span>
+          </div>
+          <NuxtLink to="/quiz" :class="$style.quizLink">
+            Пройти опрос
+            <el-icon><ArrowRight /></el-icon>
+          </NuxtLink>
         </div>
       </div>
     </el-header>
 
-    <!-- Main Content -->
     <el-main :class="$style.main">
       <slot />
     </el-main>
+
+    <el-footer :class="$style.footer" height="auto">
+      <div :class="$style.footerContent">
+        <div>
+          <NuxtLink to="/" :class="$style.footerLogo">
+            K<span>+31</span>
+          </NuxtLink>
+          <p>Учебный сервис персонального подбора медицинских пакетов.</p>
+        </div>
+
+        <nav :class="$style.footerNavigation" aria-label="Навигация в подвале">
+          <NuxtLink to="/">Главная</NuxtLink>
+          <NuxtLink to="/about">О проекте</NuxtLink>
+          <NuxtLink to="/team">Команда</NuxtLink>
+          <NuxtLink to="/quiz">Пройти опрос</NuxtLink>
+        </nav>
+      </div>
+
+      <div :class="$style.footerBottom">
+        <span>© 2026 K+31</span>
+        <span>Проект не заменяет медицинскую консультацию</span>
+      </div>
+    </el-footer>
   </el-container>
 </template>
 
 <style lang="scss" module>
 .layout {
   min-height: 100vh;
-  background-color: #f8fafc;
+  background: #f3f8fe;
 }
 
 .header {
-  background-color: white;
-  border-bottom: 1px solid #e5e7eb;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  position: sticky;
+  z-index: 10;
+  top: 0;
+  border-bottom: 1px solid #e1ebf6;
+  backdrop-filter: blur(14px);
+  background: rgb(255 255 255 / 88%);
 }
 
 .headerContent {
-  height: 100%;
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 0 24px;
   display: flex;
+  max-width: 1240px;
+  height: 100%;
   align-items: center;
   justify-content: space-between;
+  padding: 0 24px;
+  margin: 0 auto;
+  gap: 28px;
 }
 
 .logo {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 12px;
+  color: inherit;
+  gap: 16px;
+  text-decoration: none;
 }
 
-.logoText {
-  font-size: 13px;
-  line-height: 1.1;
-  color: #6b7280;
+.logoMark,
+.footerLogo {
+  color: #075fcb;
+  font-weight: 800;
+  letter-spacing: -0.09em;
 
   span {
-    font-weight: 500;
-    color: #374151;
+    color: #0b82ef;
   }
 }
 
-.progressContainer {
+.logoMark {
+  font-size: 31px;
+}
+
+.logoText {
+  padding-left: 15px;
+  border-left: 1px solid #d9e6f4;
+  color: #65809e;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  line-height: 1.35;
+
+  strong {
+    color: #345a80;
+  }
+}
+
+.navigation,
+.footerNavigation {
   display: flex;
   align-items: center;
-  gap: 16px;
+
+  a {
+    color: #5c7895;
+    font-size: 14px;
+    text-decoration: none;
+    transition: color 160ms ease;
+
+    &:hover,
+    &.active {
+      color: #0877e8;
+    }
+  }
 }
 
-.progressText {
-  font-size: 14px;
-  color: #6b7280;
-  white-space: nowrap;
+.navigation {
+  margin-left: auto;
+  gap: 22px;
 }
 
-.progressPercent {
-  font-size: 14px;
-  font-weight: 600;
-  color: #374151;
-}
-
-.rightSection {
+.headerActions,
+.protected,
+.quizLink {
   display: flex;
   align-items: center;
-  gap: 12px;
 }
 
-.protectedText {
-  font-size: 14px;
-  color: #6b7280;
-  display: none;
+.headerActions {
+  gap: 18px;
+}
 
-  @media (min-width: 640px) {
-    display: block;
+.protected {
+  color: #6d87a4;
+  font-size: 12px;
+  gap: 7px;
+
+  :global(.el-icon) {
+    color: #0b82ef;
+  }
+}
+
+.quizLink {
+  padding: 10px 15px;
+  border-radius: 999px;
+  background: #0877e8;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 5px;
+  text-decoration: none;
+  transition: background 160ms ease;
+
+  &:hover {
+    background: #0568ce;
   }
 }
 
 .main {
-  max-width: 1280px;
+  width: 100%;
+  padding: 30px 24px 64px;
+}
+
+.footer {
+  padding: 42px 24px 20px;
+  border-top: 1px solid #deebf7;
+  background: #eaf3fc;
+}
+
+.footerContent,
+.footerBottom {
+  display: flex;
+  max-width: 1192px;
+  justify-content: space-between;
   margin: 0 auto;
-  padding: 32px 24px;
-  background-color: #f8fafc;
+  gap: 28px;
+}
+
+.footerLogo {
+  font-size: 28px;
+  text-decoration: none;
+}
+
+.footerContent p {
+  max-width: 380px;
+  margin: 14px 0 0;
+  color: #6d87a4;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.footerNavigation {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 18px;
+}
+
+.footerBottom {
+  padding-top: 18px;
+  border-top: 1px solid #d6e5f4;
+  margin-top: 32px;
+  color: #8298b0;
+  font-size: 12px;
+}
+
+@media (width <= 960px) {
+  .protected {
+    display: none;
+  }
+}
+
+@media (width <= 760px) {
+  .header {
+    height: auto !important;
+  }
+
+  .headerContent {
+    min-height: 72px;
+    flex-wrap: wrap;
+    padding: 12px 16px;
+    gap: 10px 16px;
+  }
+
+  .logoText {
+    display: none;
+  }
+
+  .navigation {
+    order: 3;
+    width: 100%;
+    justify-content: space-between;
+    margin: 0;
+    gap: 12px;
+  }
+
+  .quizLink {
+    padding: 9px 12px;
+    font-size: 12px;
+  }
+
+  .main {
+    padding: 16px 12px 42px;
+  }
+
+  .footer {
+    padding: 32px 18px 18px;
+  }
+
+  .footerContent,
+  .footerBottom {
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .footerNavigation {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
 }
 </style>

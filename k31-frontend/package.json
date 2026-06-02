@@ -2,10 +2,17 @@
   "name": "k31-frontend",
   "type": "module",
   "private": true,
+  "engines": {
+    "node": ">=24.14.0"
+  },
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
+    "lint": "npm run lint:eslint && npm run lint:style",
+    "lint:eslint": "eslint .",
+    "lint:fix": "eslint . --fix && stylelint \"**/*.{vue,scss,css}\" --fix",
+    "lint:style": "stylelint \"**/*.{vue,scss,css}\"",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare"
   },
@@ -17,8 +24,15 @@
     "vue-router": "^5.0.7"
   },
   "devDependencies": {
+    "@antfu/eslint-config": "^9.0.0",
     "@element-plus/nuxt": "^1.1.5",
     "element-plus": "^2.14.0",
-    "sass-embedded": "^1.100.0"
+    "eslint": "^9.39.4",
+    "postcss-html": "^1.8.1",
+    "sass-embedded": "^1.100.0",
+    "stylelint": "^16.26.1",
+    "stylelint-config-idiomatic-order": "^10.0.0",
+    "stylelint-config-recommended-vue": "^1.6.1",
+    "stylelint-config-standard-scss": "^14.0.0"
   }
 }

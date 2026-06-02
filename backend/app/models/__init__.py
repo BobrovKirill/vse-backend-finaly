@@ -1,10 +1,31 @@
-from app.models.entities import AnswerOption, Package, Question, Submission, SubmissionAnswer, User
+from app.models.entities import (
+    Answer,
+    AnswerEffect,
+    Choice,
+    ChoiceAnswer,
+    ChoiceIndicatorScore,
+    ChoicePackageRecommendation,
+    HealthIndicator,
+    Package,
+    PackageRule,
+    PackageService,
+    Question,
+    Service,
+    User,
+)
 
 __all__ = [
-    "AnswerOption",
+    "Answer",
+    "AnswerEffect",
+    "Choice",
+    "ChoiceAnswer",
+    "ChoiceIndicatorScore",
+    "ChoicePackageRecommendation",
+    "HealthIndicator",
     "Package",
+    "PackageRule",
+    "PackageService",
     "Question",
-    "Submission",
-    "SubmissionAnswer",
+    "Service",
     "User",
 ]

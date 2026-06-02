@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.database import Base, engine
+from app.core.database import engine
 from app.core.security import get_password_hash
 from app.models.entities import User
 from app.api.v1 import admin, auth
@@ -19,7 +19,6 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     def startup() -> None:
-        Base.metadata.create_all(bind=engine)
         _ensure_first_admin()
 
     return app
